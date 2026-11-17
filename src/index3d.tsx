@@ -78,7 +78,7 @@ const Store = () => (
   <group>
     <Part position={[0, 0.7, 0]} geo={box(1.5, 1.4, 0.9)} color="#2b3a67" />
     <Part position={[0, 1.45, 0.1]} geo={box(1.7, 0.14, 1.1)} color={C.red} />
-    <Part position={[0, 1.85, 0.2]} geo={box(1.0, 0.28, 0.1)} color={C.gold} />
+    <Part position={[0, 1.66, 0.2]} geo={box(1.0, 0.28, 0.1)} color={C.gold} />
     <Part position={[0.4, 0.4, 0.47]} geo={box(0.4, 0.8, 0.05)} color={INK} />
     <Part position={[-0.35, 0.6, 0.47]} geo={box(0.6, 0.5, 0.05)} color="#bfe6ff" />
   </group>
@@ -145,14 +145,14 @@ const World = () => {
       for (let k = 0; k < 4; k++) {
         const i = r * 4 + k;
         people.push(
-          <group key={"l" + i} position={[-2.0 + k * 0.55 + r * 0.27, 0, 0.7 - r * 1.1]} scale={0.42 * pop(lf, 60 + i * 4, 14)}>
+          <group key={"l" + i} position={[-1.75 + k * 0.5 + r * 0.25, 0, 0.4 - r * 1.1]} scale={0.34 * pop(lf, 60 + i * 4, 14)}>
             <Hero shirt={C.teal} />
           </group>
         );
       }
     for (let j = 0; j < 3; j++)
       people.push(
-        <group key={"r" + j} position={[0.7 + j * 0.55, 0, 0.7]} scale={0.42 * pop(lf, 100 + j * 6, 14)}>
+        <group key={"r" + j} position={[0.65 + j * 0.5, 0, 0.4]} scale={0.34 * pop(lf, 100 + j * 6, 14)}>
           <Hero shirt={C.red} />
         </group>
       );
@@ -175,7 +175,7 @@ const World = () => {
     content = (
       <>
         {bills}
-        <group position={[0, 0, 0.5]} scale={1.1}><Coins n={stack} /></group>
+        <group position={[0, 0, -1.0]} scale={1.3}><Coins n={stack} /></group>
       </>
     );
   } else if (s === 4) {
@@ -204,7 +204,7 @@ const World = () => {
       <color attach="background" args={[C.bg]} />
       <ambientLight intensity={0.8} />
       <directionalLight position={[3, 6, 6]} intensity={2.6} />
-      <mesh position={[0, -0.1, -3]}><boxGeometry args={[16, 0.2, 14]} /><meshToonMaterial color="#111835" /></mesh>
+      <mesh position={[0, -0.1, 0]}><boxGeometry args={[16, 0.2, 26]} /><meshToonMaterial color="#111835" /></mesh>
       <City />
       {content}
     </>
@@ -263,8 +263,8 @@ const Ov3 = () => {
       <Txt top={290} size={170} color={C.gold}>{n} million</Txt>
       <Txt top={500} size={56} weight={700}>Lyft riders in the study</Txt>
       <Txt top={600} size={36} weight={400} color={C.dim} style={{ opacity: fade(f, 120, 150) }}>Illustration, not actual data</Txt>
-      <Art svg={tag("$9.99", 46)} left={150} top={870} width={220} height={140} style={{ transform: `scale(${pop(f, 40)})` }} />
-      <Art svg={tag("$10.00", 40)} left={722} top={870} width={220} height={140} style={{ transform: `scale(${pop(f, 40)})` }} />
+      <Art svg={tag("$9.99", 46)} left={211} top={950} width={220} height={140} style={{ transform: `scale(${pop(f, 40)})` }} />
+      <Art svg={tag("$10.00", 40)} left={715} top={950} width={220} height={140} style={{ transform: `scale(${pop(f, 40)})` }} />
       <Caption text="In a study of 21 million Lyft riders, demand dropped sharply when a fare crossed a whole-dollar mark." />
     </>
   );
