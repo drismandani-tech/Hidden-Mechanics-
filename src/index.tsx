@@ -1,17 +1,17 @@
 import React from "react";
 import { AbsoluteFill, Composition, interpolate, registerRoot, spring, useCurrentFrame } from "remotion";
-import { person, car, store, bill, tag } from "./art";
-import atlas from "./mascot.png";
-import { Obj, Stage, Text3D, Coin3D, CoinPile, Box3D, Gear3D, Billboard, Floor, shake, Ring, Rays, Confetti, Stars, Flash, Vignette } from "./fx";
+import { person, car, store, bill, coins, tag } from "./art";
+import { mascot } from "./mascot";
 
 const FPS = 30;
-const C = { bg: "#0b1020", text: "#ffffff", gold: "#ffcc33", teal: "#35d0c0", red: "#ff5a6e", dim: "#7b86a8", ink: "#10162e" };
+const P = { navy: "#14224f", blue: "#2b59ff", blue2: "#1f3fbf", purple: "#6d4cff", teal: "#0fb5a3", coral: "#ff6a4d", gold: "#ffc93c", white: "#ffffff", red: "#ff5a5f" };
 const FONT = "Arial, Helvetica, sans-serif";
 const clamp = { extrapolateLeft: "clamp", extrapolateRight: "clamp" };
 const fade = (f, a, b) => interpolate(f, [a, b], [0, 1], clamp);
 const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 const L = (f, a, b, from, to) => from + (to - from) * ease(fade(f, a, b));
-const pop = (f, start, damping = 12) => spring({ frame: Math.max(0, f - start), fps: FPS, config: { damping } });
+const pop = (f, start, damping = 11) => spring({ frame: Math.max(0, f - start), fps: FPS, config: { damping } });
+const rnd = (i, seed, m) => (((i * 9301 + seed * 49297 + i * i * 31) % m) / m + 1) % 1;
 
 const FR = [90, 300, 225, 195, 150, 90];
 const STARTS = FR.map((_, i) => FR.slice(0, i).reduce((a, b) => a + b, 0));
@@ -21,8 +21,11 @@ const sceneOf = (f) => {
   STARTS.forEach((st, k) => { if (f >= st) s = k; });
   return s;
 };
+const BG = [P.blue, P.purple, P.teal, P.coral, P.blue2, P.navy];
+const SHADOW = ["#1a2f9e", "#4a30c4", "#087a6e", "#b8402a", "#142a80", "#0a1230"];
+const BADGES = ["", "THE TRICK", "THE STUDY", "THE ESTIMATE", "THE TAKEAWAY", ""];
 
-/* narration lines: [start sec, end sec, text] — with real voice-over only these times change */
+/* narration lines: [start sec, end sec, text]. With real voice-over, only these times change. */
 const LINES = [
   [0.0, 2.9, "Why do prices end in .99?"],
   [3.0, 6.6, "Your brain reads prices left to right."],
@@ -33,19 +36,6 @@ const LINES = [
   [27.0, 32.0, "So next time you see $9.99, remember: it’s a nudge for your brain."],
   [32.0, 35.0, "Follow for more hidden mechanics."],
 ];
-const BADGES = ["", "THE TRICK", "THE STUDY", "THE ESTIMATE", "THE TAKEAWAY", ""];
-
-
-/* ---------- mascot atlas (one PNG with every pose and turnaround view) ---------- */
-const AT = { w: 2400, h: 1590, pos: { talk: [0, 0, 942, 650], wow: [948, 0, 684, 608], present: [1638, 0, 658, 512], think: [0, 656, 492, 508], idea: [498, 656, 540, 518], front: [1044, 656, 360, 920], three: [1410, 656, 304, 932], side: [1720, 656, 224, 934], back: [1950, 656, 356, 924] } };
-const spriteW = (name, h) => (AT.pos[name][2] * h) / AT.pos[name][3];
-const Sprite = ({ name, h, style }) => {
-  const [x, y, w, hh] = AT.pos[name];
-  const k = h / hh;
-  return <div style={{ width: w * k, height: h, backgroundImage: `url(${atlas})`, backgroundRepeat: "no-repeat", backgroundSize: `${AT.w * k}px ${AT.h * k}px`, backgroundPosition: `${-x * k}px ${-y * k}px`, ...style }} />;
-};
-
-/* which word is being spoken right now */
 const lineState = (f) => {
   const t = f / FPS;
   let li = 0;
@@ -55,60 +45,121 @@ const lineState = (f) => {
   const w = words.map((x) => x.length + 2);
   const total = w.reduce((a, b) => a + b, 0);
   const p = Math.min(0.999, Math.max(0, (t - st) / Math.max(0.1, en - st)));
-  let acc = 0, cur = 0, curStart = 0;
-  w.forEach((x, i) => { if (p >= acc / total) { cur = i; curStart = acc / total; } acc += x; });
-  return { st, en, text, words, cur, wordFrame: (st + curStart * (en - st)) * FPS };
+  let acc = 0, cur = 0;
+  w.forEach((x, i) => { if (p >= acc / total) cur = i; acc += x; });
+  return { st, en, text, words, cur, speaking: t >= st && t <= en };
 };
-const speech = (f) => Math.exp(-(f - lineState(f).wordFrame) / 5);
 
-const Spr = ({ svg, w, h, style }) => <div style={{ width: w, height: h, ...style }} dangerouslySetInnerHTML={{ __html: svg }} />;
+/* ---------- small helpers ---------- */
 const Art = ({ svg, left, top, width, height, style }) => (
   <div style={{ position: "absolute", left, top, width, height, ...style }} dangerouslySetInnerHTML={{ __html: svg }} />
 );
+const T = ({ children, top, size, color = P.white, left = 0, right = 0, weight = 900, shadow, sd = 10, style }) => (
+  <div style={{ position: "absolute", left, right, top, textAlign: "center", fontFamily: FONT, fontWeight: weight, fontSize: size, lineHeight: 1.05, color, whiteSpace: "nowrap", textShadow: shadow ? `${sd}px ${sd}px 0 ${shadow}` : "none", ...style }}>{children}</div>
+);
+const Chip = ({ children, bg = P.white, color = P.navy, size = 44, style }) => (
+  <div style={{ display: "inline-block", fontFamily: FONT, fontWeight: 900, fontSize: size, color, background: bg, borderRadius: 22, padding: "8px 28px", whiteSpace: "nowrap", boxShadow: "0 8px 0 rgba(20,34,79,0.22)", ...style }}>{children}</div>
+);
+const Coin2D = ({ size = 120, f = 0, seed = 0 }) => (
+  <div style={{ width: size, height: size, borderRadius: "50%", background: P.gold, border: `${size * 0.07}px solid #e09b00`, boxSizing: "border-box", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT, fontWeight: 900, fontSize: size * 0.55, color: "#b87800", transform: `scaleX(${Math.cos((f + seed * 9) / 6)})` }}>$</div>
+);
+const STAR = "polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%)";
 
-const Tag3D = ({ text, size = 46, w = 380, ry = 0, rz = 0 }) => (
-  <div style={{ position: "relative", width: w, height: w * 0.636, transformStyle: "preserve-3d", transformOrigin: "30% 0%", transform: `rotateY(${ry}deg) rotateZ(${rz}deg)` }}>
-    <div style={{ position: "absolute", inset: 0, backfaceVisibility: "hidden" }} dangerouslySetInnerHTML={{ __html: tag(text, size) }} />
-    <div style={{ position: "absolute", inset: 0, backfaceVisibility: "hidden", transform: "rotateY(180deg)" }} dangerouslySetInnerHTML={{ __html: tag("", size) }} />
-  </div>
+const gearPath = (R = 96, r = 74, n = 10, hole = 28) => {
+  let d = "";
+  const step = (Math.PI * 2) / n;
+  for (let i = 0; i < n; i++) {
+    const a = i * step;
+    [[r, a - step * 0.3], [R, a - step * 0.16], [R, a + step * 0.16], [r, a + step * 0.3]].forEach(([rad, ang], j) => {
+      d += `${i === 0 && j === 0 ? "M" : "L"}${(100 + rad * Math.cos(ang)).toFixed(1)} ${(100 + rad * Math.sin(ang)).toFixed(1)} `;
+    });
+  }
+  return `${d}Z M100 ${100 + hole} A${hole} ${hole} 0 1 0 100 ${100 - hole} A${hole} ${hole} 0 1 0 100 ${100 + hole} Z`;
+};
+const GEAR = gearPath();
+const Gear = ({ size, color, rot = 0, style }) => (
+  <svg viewBox="0 0 200 200" width={size} height={size} style={{ transform: `rotate(${rot}deg)`, ...style }}><path d={GEAR} fill={color} fillRule="evenodd" /></svg>
 );
 
-const Chip = ({ children, bg = C.gold, color = C.ink, size = 44 }) => (
-  <div style={{ fontFamily: FONT, fontWeight: 900, fontSize: size, color, background: bg, borderRadius: 18, padding: "8px 28px", whiteSpace: "nowrap" }}>{children}</div>
+/* ---------- effects (all flat shapes) ---------- */
+const CONF = [P.gold, P.white, P.red, P.teal, P.purple];
+const Confetti = ({ f, start, n = 40, cx = 540, cy = 900, life = 70, seed = 1, power = 1 }) => {
+  const t = f - start;
+  if (t < 0 || t > life) return null;
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const ang = rnd(i, seed, 997) * Math.PI * 2;
+    const sp = (5 + rnd(i, seed + 3, 613) * 15) * power;
+    const k = 1 - Math.max(0, (t - life * 0.6) / (life * 0.4));
+    out.push(<div key={i} style={{ position: "absolute", left: cx + Math.cos(ang) * sp * t * 0.85, top: cy + Math.sin(ang) * sp * t * 0.85 + 0.2 * t * t, width: 16, height: 24, borderRadius: 4, background: CONF[i % 5], transform: `rotate(${rnd(i, seed + 7, 331) * 360 + t * (8 + rnd(i, seed, 211) * 20)}deg) scale(${k})`, opacity: k }} />);
+  }
+  return <>{out}</>;
+};
+const Stars = ({ f, start, n = 12, cx = 540, cy = 900, spread = 360, life = 50, seed = 2, color = P.white }) => {
+  const t = f - start;
+  if (t < 0 || t > life) return null;
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const x = cx + (rnd(i, seed, 997) - 0.5) * 2 * spread;
+    const y = cy + (rnd(i, seed + 5, 613) - 0.5) * 2 * spread * 0.7;
+    const d = rnd(i, seed + 9, 41) * 14;
+    const k = Math.max(0, Math.sin(((t - d) / life) * Math.PI));
+    const sz = 26 + rnd(i, seed + 1, 77) * 36;
+    out.push(<div key={i} style={{ position: "absolute", left: x - sz / 2, top: y - sz / 2, width: sz, height: sz, background: color, clipPath: STAR, transform: `scale(${k}) rotate(${t * 4}deg)` }} />);
+  }
+  return <>{out}</>;
+};
+const Flash = ({ f, start, strength = 0.5 }) => {
+  const t = f - start;
+  if (t < 0 || t > 12) return null;
+  return <div style={{ position: "absolute", inset: 0, background: "#fff", opacity: strength * Math.exp(-t / 3.5) }} />;
+};
+const Burst = ({ cx, cy, size = 1500, rot = 0, color = "rgba(255,255,255,0.13)", k = 1 }) => (
+  <div style={{ position: "absolute", left: cx - size / 2, top: cy - size / 2, width: size, height: size, borderRadius: "50%", background: `repeating-conic-gradient(${color} 0deg 9deg, transparent 9deg 24deg)`, transform: `rotate(${rot}deg) scale(${k})` }} />
+);
+const RingPulse = ({ cx, cy, t, size = 360, color = P.gold, width = 12 }) => (
+  <div style={{ position: "absolute", left: cx - size / 2, top: cy - size / 2, width: size, height: size, borderRadius: "50%", border: `${width}px solid ${color}`, boxSizing: "border-box", opacity: 1 - t, transform: `scale(${0.3 + t * 1.3})` }} />
 );
 
-const DIM = ["#c4cbe8", "#8a94bd", "#5f6a96"];
-
-/* ---------- 2D background ---------- */
-const Background = () => {
-  const f = useCurrentFrame();
-  const dots = [];
-  for (let i = 0; i < 16; i++) {
-    const x = (i * 197) % 1080;
-    const y = 1900 - ((f * (0.7 + (i % 4) * 0.35) + i * 260) % 2000);
-    dots.push(<div key={i} style={{ position: "absolute", left: x, top: y, width: 6 + (i % 3) * 3, height: 6 + (i % 3) * 3, borderRadius: "50%", background: i % 2 ? "rgba(255,204,51,0.55)" : "rgba(53,208,192,0.5)", boxShadow: "0 0 14px currentColor" }} />);
+/* ---------- background with circle-reveal scene change ---------- */
+const Background = ({ f }) => {
+  const s = sceneOf(f);
+  const lf = f - STARTS[s];
+  const r = s === 0 ? 3000 : ease(fade(lf, 0, 16)) * 3000;
+  const prev = BG[Math.max(0, s - 1)];
+  const decor = [];
+  for (let i = 0; i < 9; i++) {
+    const x = rnd(i, 3, 997) * 1200 - 60;
+    const y = 120 + rnd(i, 5, 613) * 1500 + Math.sin((f + i * 40) / 50) * 24;
+    const sz = 60 + rnd(i, 7, 211) * 110;
+    const kind = i % 3;
+    decor.push(kind === 0
+      ? <div key={i} style={{ position: "absolute", left: x, top: y, width: sz, height: sz, borderRadius: "50%", border: "10px solid rgba(255,255,255,0.12)", boxSizing: "border-box" }} />
+      : kind === 1
+      ? <div key={i} style={{ position: "absolute", left: x, top: y, width: sz * 0.5, height: sz * 0.5, background: "rgba(255,255,255,0.12)", transform: `rotate(${f * 0.6 + i * 40}deg)`, clipPath: "polygon(35% 0, 65% 0, 65% 35%, 100% 35%, 100% 65%, 65% 65%, 65% 100%, 35% 100%, 35% 65%, 0 65%, 0 35%, 35% 35%)" }} />
+      : <div key={i} style={{ position: "absolute", left: x, top: y, width: sz * 0.45, height: sz * 0.45, borderRadius: "50%", background: "rgba(255,255,255,0.12)" }} />);
   }
   return (
-    <AbsoluteFill style={{ background: `radial-gradient(900px 700px at 15% 6%, rgba(53,208,192,0.22), transparent 62%), radial-gradient(1000px 800px at 90% 96%, rgba(255,204,51,0.16), transparent 62%), ${C.bg}` }}>
-      <div style={{ position: "absolute", left: 640 + Math.sin(f / 50) * 50, top: 260 + Math.cos(f / 60) * 40, width: 380, height: 380, borderRadius: "50%", background: "rgba(53,208,192,0.14)", filter: "blur(70px)" }} />
-      <div style={{ position: "absolute", left: 40 + Math.cos(f / 55) * 40, top: 1150 + Math.sin(f / 45) * 50, width: 340, height: 340, borderRadius: "50%", background: "rgba(255,90,110,0.12)", filter: "blur(70px)" }} />
-      {dots}
+    <AbsoluteFill style={{ background: prev }}>
+      <div style={{ position: "absolute", inset: 0, background: BG[s], clipPath: `circle(${r}px at 200px 1480px)` }} />
+      <Gear size={520} color="rgba(255,255,255,0.08)" rot={f * 0.5} style={{ position: "absolute", left: -140, top: 520 }} />
+      <Gear size={420} color="rgba(255,255,255,0.08)" rot={-f * 0.6 + 12} style={{ position: "absolute", left: 800, top: 1250 }} />
+      {decor}
     </AbsoluteFill>
   );
 };
 
-/* ---------- kinetic subtitles ---------- */
-const Subtitles = () => {
-  const f = useCurrentFrame();
+/* ---------- kinetic subtitles (flat, highlight pill on the spoken word) ---------- */
+const Subtitles = ({ f }) => {
   const { st, text, words, cur } = lineState(f);
-  const size = text.length <= 40 ? 88 : text.length <= 75 ? 74 : 62;
+  const size = text.length <= 40 ? 92 : text.length <= 75 ? 78 : 64;
   const lf = f - Math.round(st * FPS);
-  const e = fade(lf, 0, 7);
+  const e = fade(lf, 0, 6);
   return (
-    <div style={{ position: "absolute", left: 70, right: 70, top: 140, height: 380, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", fontFamily: FONT, fontWeight: 900, fontSize: size, lineHeight: 1.16, opacity: e, transform: `translateY(${(1 - e) * 18}px)`, textShadow: "0 6px 24px rgba(0,0,0,0.55)" }}>
+    <div style={{ position: "absolute", left: 60, right: 60, top: 96, height: 390, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", fontFamily: FONT, fontWeight: 900, fontSize: size, lineHeight: 1.3, opacity: e, transform: `translateY(${(1 - e) * 20}px)` }}>
       <div>
         {words.map((x, i) => (
-          <span key={i} style={{ display: "inline-block", marginRight: size * 0.26, color: i === cur ? C.gold : C.text, opacity: i < cur ? 0.6 : i === cur ? 1 : 0.34, filter: i > cur ? "blur(3px)" : "none", transform: i === cur ? "scale(1.07)" : "scale(1)" }}>{x}</span>
+          <span key={i} style={{ display: "inline-block", margin: "0 3px", padding: "0 11px", borderRadius: 18, color: i === cur ? P.navy : P.white, background: i === cur ? P.gold : "transparent", opacity: i <= cur ? 1 : 0.5, transform: i === cur ? "rotate(-2deg) scale(1.05)" : "none" }}>{x}</span>
         ))}
       </div>
     </div>
@@ -116,316 +167,193 @@ const Subtitles = () => {
 };
 
 const Badge = ({ text, lf }) =>
-  text ? (
-    <div style={{ position: "absolute", left: 60, top: 592, padding: "8px 24px", borderRadius: 999, background: C.teal, color: C.ink, fontFamily: FONT, fontSize: 32, fontWeight: 900, letterSpacing: 1.5, opacity: fade(lf, 4, 14), transform: `translateX(${(1 - ease(fade(lf, 4, 16))) * -80}px)` }}>{text}</div>
-  ) : null;
+  text ? <div style={{ position: "absolute", left: 60, top: 500, padding: "8px 26px", borderRadius: 999, background: P.white, color: P.navy, fontFamily: FONT, fontSize: 32, fontWeight: 900, letterSpacing: 2, boxShadow: "0 6px 0 rgba(20,34,79,0.22)", opacity: fade(lf, 6, 16), transform: `translateX(${(1 - ease(fade(lf, 6, 18))) * -120}px)` }}>{text}</div> : null;
 
-/* ---------- shared 3D backdrop: gears far behind ---------- */
-const Backdrop = ({ f }) => (
-  <>
-    <Obj x={-430} y={-260} z={-900}><Gear3D size={560} spin={f * 0.35} color="#18244d" front="#22336a" depth={60} /></Obj>
-    <Obj x={440} y={90} z={-1100}><Gear3D size={700} spin={-f * 0.28 + 10} color="#16224a" front="#1f2f63" depth={60} /></Obj>
-    <Obj x={20} y={-520} z={-1400}><Gear3D size={760} spin={f * 0.2} color="#141f43" front="#1c2a58" depth={60} /></Obj>
-  </>
-);
-
-/* ---------- scenes (3D) ---------- */
-const FLOOR = 250;
-const NW = { whiteSpace: "nowrap" };
-
+/* ---------- scenes ---------- */
 const S1 = ({ lf, f }) => {
-  const cam = { z: L(lf, 0, 90, -260, 0), rx: -9 + shake(lf, 8, 1.2), ry: L(lf, 0, 90, -14, 0) + shake(lf, 8, 1.6) };
-  const tags = [["$9.99", -300, -250, 110, -10, 0], ["$19.99", 300, -250, 70, 8, 8], ["$4.99", -280, 200, 210, -4, 16]];
+  const tags = [["$9.99", 40, 500, 340, -10, 0], ["$19.99", 700, 520, 330, 8, 8], ["$4.99", 650, 1060, 340, -5, 16]];
+  const k = pop(lf, 4, 8);
   return (
-    <Stage cam={cam}>
-      <Floor y={FLOOR} scroll={f * 4} />
-      <Backdrop f={f} />
-      {lf >= 6 && lf < 42 ? <Obj x={0} y={0} z={-60}><Ring t={fade(lf, 6, 40)} size={640} /></Obj> : null}
-      {lf >= 6 && lf < 50 ? <Obj x={0} y={0} z={-80}><Rays t={fade(lf, 6, 48)} size={900} /></Obj> : null}
-      <Obj x={0} y={0} z={0} ry={Math.sin(lf / 14) * 12} s={pop(lf, 6, 9)}>
-        <Text3D text=".99?" size={380} depth={90} />
-      </Obj>
-      {tags.map(([txt, x, y, z, rz, d], i) => {
-        const k = ease(fade(lf, d, d + 24));
-        return (
-          <Obj key={i} x={x} y={y + Math.sin((f + i * 20) / 14) * 12} z={z - (1 - k) * 1800} ry={(1 - k) * 200 + Math.sin((f + i * 30) / 20) * 10} rz={rz}>
-            <Tag3D text={txt} size={txt.length > 5 ? 40 : 46} w={380} />
-          </Obj>
-        );
-      })}
-      <Obj x={330} y={150} z={230} s={pop(lf, 26)}><Coin3D size={150} spin={f * 5} tilt={12} /></Obj>
-      <Obj x={-60} y={270} z={260} s={pop(lf, 34)}><Coin3D size={110} spin={-f * 4 + 40} tilt={-14} /></Obj>
-    </Stage>
+    <>
+      <Burst cx={540} cy={840} rot={f * 0.8} k={fade(lf, 2, 20)} />
+      <T top={640} size={430} color={P.gold} shadow={P.navy} sd={16} style={{ transform: `scale(${k}) rotate(${-3 + (1 - k) * 8}deg)` }}>.99?</T>
+      {tags.map(([txt, x, y, w, r, d], i) => (
+        <Art key={i} svg={tag(txt, txt.length > 5 ? 40 : 46)} left={x} top={y + (1 - pop(lf, d, 9)) * -700 + Math.sin((f + i * 20) / 12) * 8} width={w} height={w * 0.636}
+          style={{ transform: `rotate(${r + Math.sin((f + i * 30) / 16) * 3}deg)`, filter: "drop-shadow(0 12px 0 rgba(20,34,79,0.25))" }} />
+      ))}
+      <div style={{ position: "absolute", left: 440, top: 1070 + Math.sin(f / 10) * 10, opacity: fade(lf, 26, 34) }}><Coin2D size={120} f={f} /></div>
+      <div style={{ position: "absolute", left: 900, top: 1330 + Math.sin(f / 9) * 10, opacity: fade(lf, 34, 42) }}><Coin2D size={100} f={f} seed={2} /></div>
+    </>
   );
 };
 
 const S2 = ({ lf, f }) => {
-  const cam = { z: L(lf, 0, 300, -40, 60), rx: -9 + shake(lf, 40, 1) + shake(lf, 132, 1.2), ry: L(lf, 0, 300, -12, 12) + shake(lf, 40, 1.4) };
-  const rail = ease(fade(lf, 100, 130));
-  const pin = pop(lf, 130, 9);
-  const flip = ease(fade(lf, 205, 228));
-  const four = ease(fade(lf, 30, 52));
-  const beamX = L(lf, 6, 44, -420, -70);
-  const beamO = fade(lf, 4, 10) * (1 - fade(lf, 44, 60));
-  const R = Math.max(rail, 0.001);
+  const e = ease(fade(lf, 0, 14));
+  const lit = lf < 20 ? 0 : lf < 45 ? 1 : 2;
+  const four = pop(lf, 40, 8);
+  const line = ease(fade(lf, 100, 130));
+  const pin = pop(lf, 130, 8);
+  const note = ease(fade(lf, 150, 185));
+  const rib = ease(fade(lf, 205, 228));
+  const dim = "rgba(20,34,79,0.30)";
   return (
-    <Stage cam={cam}>
-      <Floor y={FLOOR} scroll={f * 3} />
-      <Backdrop f={f} />
-      <Obj x={0} y={-140} z={0}>
-        <div style={{ display: "flex", alignItems: "baseline", transformStyle: "preserve-3d" }}>
-          <div style={{ transformStyle: "preserve-3d", transform: `translateZ(${-30 * four}px)` }}><Text3D text="$" size={240} face={lf >= 20 ? ["#f4f6ff", "#c4cbe8", "#8a94bd"] : DIM} side="#2e3558" depth={60} /></div>
-          <div style={{ transformStyle: "preserve-3d", transform: `translateZ(${110 * four}px) scale(${1 + 0.1 * four})` }}><Text3D text="4" size={240} depth={80} layers={20} /></div>
-          <div style={{ transformStyle: "preserve-3d", transform: `translateZ(${-60 * four}px)` }}><Text3D text=".99" size={240} face={DIM} side="#2a3052" depth={60} /></div>
+    <>
+      <div style={{ position: "absolute", left: 70, right: 70, top: 560 + (1 - e) * 120, height: 640, borderRadius: 56, background: P.white, boxShadow: "0 16px 0 rgba(20,34,79,0.25)", opacity: e, fontFamily: FONT }}>
+        <div style={{ position: "absolute", left: 0, right: 0, top: 34, textAlign: "center", fontSize: 30, fontWeight: 900, letterSpacing: 4, color: "#8a93b8", opacity: 1 - rib }}>YOUR BRAIN READS &nbsp;&rarr;</div>
+        <div style={{ position: "absolute", left: 0, right: 0, top: 70, display: "flex", justifyContent: "center", alignItems: "baseline", fontSize: 280, fontWeight: 900, lineHeight: 1.1 }}>
+          <span style={{ color: lit >= 1 ? P.navy : dim }}>$</span>
+          <span style={{ display: "inline-block", color: lit >= 2 ? P.gold : dim, transform: `scale(${lit >= 2 ? 0.9 + 0.3 * Math.min(four, 1.15) : 1})`, transformOrigin: "50% 90%", textShadow: lit >= 2 ? `8px 8px 0 ${P.navy}` : "none" }}>4</span>
+          <span style={{ color: dim }}>.99</span>
         </div>
-      </Obj>
-      {lf >= 38 && lf < 80 ? <Obj x={-30} y={-140} z={120}><Ring t={fade(lf, 38, 78)} size={420} color="255,204,51" width={8} /></Obj> : null}
-      <Obj x={beamX} y={-140} z={150}>
-        <div style={{ width: 120, height: 300, background: "linear-gradient(90deg, transparent, rgba(255,204,51,0.4), transparent)", borderRadius: 40, opacity: beamO }} />
-      </Obj>
-      <Obj x={0} y={40} z={0} s={R}><Box3D w={760} h={16} d={18} color="#dfe6ff" shade="#8a94c0" topColor="#ffffff" /></Obj>
-      <Obj x={-380} y={42} z={0} s={R}><Box3D w={12} h={80} d={12} color="#ffffff" shade="#8a94c0" /></Obj>
-      <Obj x={380} y={42} z={0} s={R}><Box3D w={12} h={80} d={12} color="#ffffff" shade="#8a94c0" /></Obj>
-      <Obj x={-380} y={125} z={20} s={R}><Text3D text="$4.00" size={58} depth={20} layers={8} /></Obj>
-      <Obj x={380} y={125} z={20} s={R}><Text3D text="$5.00" size={58} face={["#ffffff", "#dfe6ff", "#aab3d6"]} side="#586089" depth={20} layers={8} /></Obj>
-      <Obj x={372} y={40 - (1 - Math.min(pin, 1)) * 140} z={30} s={Math.max(pin, 0.001)}>
-        <div style={{ width: 44, height: 44, borderRadius: "50%", background: "radial-gradient(circle at 35% 30%, #fff7c4, #ffcc33 55%, #d99a00)", boxShadow: "0 0 26px rgba(255,204,51,0.9)" }} />
-      </Obj>
-      {lf >= 134 && lf < 170 ? <Obj x={372} y={40} z={30}><Ring t={fade(lf, 134, 168)} size={260} color="255,204,51" width={6} /></Obj> : null}
-      <Obj x={372} y={-25} z={40} s={Math.max(pin, 0.001)}><Text3D text="$4.99" size={58} depth={20} layers={8} /></Obj>
-      <Billboard x={0} y={95} z={50} cam={cam} style={{ opacity: fade(lf, 150, 185) }}>
-        <svg width="760" height="140" viewBox="0 0 760 140">
-          <path d="M752 10 C 640 130, 250 130, 22 20" fill="none" stroke={C.gold} strokeWidth="6" strokeLinecap="round" strokeDasharray="16 12" strokeDashoffset={-f * 1.5} />
-          <path d="M10 32 L8 0 L44 12 Z" fill={C.gold} />
+        {lf >= 40 && lf < 80 ? <RingPulse cx={372} cy={230} t={fade(lf, 40, 78)} size={300} /> : null}
+        <div style={{ position: "absolute", left: 130, top: 405, width: 680 * line, height: 14, borderRadius: 7, background: P.navy }} />
+        <div style={{ position: "absolute", left: 124, top: 380, width: 14, height: 64, borderRadius: 7, background: P.navy, opacity: line }} />
+        <div style={{ position: "absolute", left: 804, top: 380, width: 14, height: 64, borderRadius: 7, background: P.navy, opacity: line }} />
+        <div style={{ position: "absolute", left: 40, width: 180, top: 460, textAlign: "center", fontSize: 44, fontWeight: 900, color: P.purple, opacity: line }}>$4.00</div>
+        <div style={{ position: "absolute", left: 720, width: 180, top: 460, textAlign: "center", fontSize: 44, fontWeight: 900, color: P.navy, opacity: line }}>$5.00</div>
+        <div style={{ position: "absolute", left: 788, top: 394 - (1 - Math.min(pin, 1)) * 90, width: 44, height: 44, borderRadius: "50%", background: P.gold, border: `6px solid ${P.navy}`, boxSizing: "border-box", transform: `scale(${Math.max(pin, 0.001)})` }} />
+        <div style={{ position: "absolute", left: 700, width: 220, top: 326, textAlign: "center", fontSize: 48, fontWeight: 900, color: P.navy, opacity: Math.min(pin, 1) }}>$4.99</div>
+        <svg style={{ position: "absolute", left: 0, top: 500, opacity: note, overflow: "visible" }} width="940" height="110" viewBox="0 0 940 110">
+          <path d="M800 8 C 690 100, 280 100, 170 14" fill="none" stroke={P.purple} strokeWidth="7" strokeLinecap="round" strokeDasharray="18 12" strokeDashoffset={-f * 1.4} />
+          <path d="M152 26 L140 -6 L186 8 Z" fill={P.purple} />
         </svg>
-      </Billboard>
-      <Obj x={0} y={190} z={60} s={Math.max(ease(fade(lf, 160, 190)), 0.001)}><Text3D text="feels like $4" size={64} depth={22} layers={8} /></Obj>
-      <Obj x={70} y={-318} z={90} rx={(1 - flip) * -90} s={Math.max(flip, 0.001)}>
-        <Box3D w={600} h={66} d={24} color={C.gold} shade="#a86f00" topColor="#fff0a0">
-          <span style={{ fontFamily: FONT, fontWeight: 900, fontSize: 40, color: C.ink, letterSpacing: 2, whiteSpace: "nowrap" }}>LEFT-DIGIT EFFECT</span>
-        </Box3D>
-      </Obj>
-    </Stage>
+        <div style={{ position: "absolute", left: 0, right: 0, top: 566, textAlign: "center", opacity: note }}><Chip bg={P.purple} color="#fff" size={44} style={{ boxShadow: "none" }}>feels like $4</Chip></div>
+      </div>
+      <div style={{ position: "absolute", left: 180 + (1 - rib) * -1100, top: 566, width: 720, height: 76, borderRadius: 14, background: P.gold, boxShadow: "0 8px 0 rgba(20,34,79,0.3)", transform: "rotate(-3deg)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT, fontWeight: 900, fontSize: 40, letterSpacing: 3, color: P.navy }}>LEFT-DIGIT EFFECT</div>
+    </>
   );
 };
 
 const S3 = ({ lf, f }) => {
-  const cam = { z: L(lf, 0, 225, 0, 60), rx: -12 + shake(lf, 36, 1), ry: L(lf, 0, 225, -24, 12) + shake(lf, 36, 1.2) };
-  const hL = ease(fade(lf, 0, 34)) * 280;
-  const hR = ease(fade(lf, 6, 40)) * 120;
-  const carX = L(lf, 0, 225, -760, 760);
-  const lp = [];
-  for (let i = 0; i < 8; i++) lp.push([(i % 4 - 1.5) * 46, Math.floor(i / 4) * 70 - 35, 30 + i * 3]);
+  const BASE = 1100;
+  const hL = ease(fade(lf, 4, 40)) * 210;
+  const hR = ease(fade(lf, 10, 46)) * 100;
+  const carX = L(lf, 0, 225, -300, 1100);
+  const L8 = [0, 1, 2, 3, 4, 5, 6, 7];
   return (
-    <Stage cam={cam}>
-      <Floor y={FLOOR} scroll={f * 5} />
-      <Backdrop f={f} />
-      <Obj x={-250} y={FLOOR - hL / 2} z={0}><Box3D w={210} h={Math.max(hL, 2)} d={210} color={C.teal} shade="#1f8b80" topColor="#7ff0e2" /></Obj>
-      <Obj x={250} y={FLOOR - hR / 2} z={0}><Box3D w={210} h={Math.max(hR, 2)} d={210} color={C.red} shade="#b03a4c" topColor="#ff9aa8" /></Obj>
-      {lp.map(([dx, dz, d], i) => (
-        <Billboard key={"l" + i} x={-250 + dx} y={FLOOR - hL - 38} z={dz} cam={cam} s={pop(lf, d, 14)}>
-          <Spr svg={person({ shirt: C.teal })} w={74} h={84} />
-        </Billboard>
+    <>
+      <T top={545} size={160} shadow={SHADOW[2]} sd={9} style={{ transform: `scale(${pop(lf, 0, 9)})` }}>21M</T>
+      <T top={700} size={42} weight={800}>riders in the study</T>
+      <div style={{ position: "absolute", left: 100, top: BASE, width: 880, height: 12, borderRadius: 6, background: "rgba(255,255,255,0.55)" }} />
+      <div style={{ position: "absolute", left: 190, top: BASE - hL, width: 240, height: hL, background: P.navy, borderRadius: "18px 18px 0 0", boxShadow: "10px 0 0 rgba(0,0,0,0.18)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT, fontWeight: 900, fontSize: 54, color: P.white, overflow: "hidden" }}>{hL > 120 ? "$9.99" : ""}</div>
+      <div style={{ position: "absolute", left: 640, top: BASE - hR, width: 240, height: hR, background: P.coral, borderRadius: "18px 18px 0 0", boxShadow: "10px 0 0 rgba(0,0,0,0.18)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT, fontWeight: 900, fontSize: 50, color: P.white, overflow: "hidden" }}>{hR > 60 ? "$10.00" : ""}</div>
+      {L8.map((i) => (
+        <Art key={"l" + i} svg={person({ shirt: P.gold })} left={204 + (i % 4) * 54} top={BASE - hL - 74 - Math.floor(i / 4) * 62 + (1 - pop(lf, 36 + i * 3, 12)) * -200} width={58} height={66} style={{ opacity: fade(lf, 36 + i * 3, 42 + i * 3) }} />
       ))}
       {[0, 1, 2].map((j) => (
-        <Billboard key={"r" + j} x={250 + (j - 1) * 56} y={FLOOR - hR - 38} z={0} cam={cam} s={pop(lf, 50 + j * 5, 14)}>
-          <Spr svg={person({ shirt: C.red })} w={74} h={84} />
-        </Billboard>
+        <Art key={"r" + j} svg={person({ shirt: P.white })} left={668 + j * 62} top={BASE - hR - 74 + (1 - pop(lf, 56 + j * 5, 12)) * -200} width={58} height={66} style={{ opacity: fade(lf, 56 + j * 5, 62 + j * 5) }} />
       ))}
-      <Obj x={-250} y={FLOOR - hL - 130} z={0} ry={Math.sin(f / 30) * 8} s={pop(lf, 14, 10)}><Text3D text="$9.99" size={84} depth={26} layers={10} /></Obj>
-      <Obj x={250} y={FLOOR - hR - 130} z={0} ry={Math.sin(f / 30 + 1) * 8} s={pop(lf, 24, 10)}><Text3D text="$10.00" size={78} face={["#ffd0d6", "#ff8d9c", "#e0475c"]} side="#8f2438" depth={26} layers={10} /></Obj>
-      <Obj x={0} y={-320} z={40} s={pop(lf, 0, 10)} ry={Math.sin(f / 26) * 8}><Text3D text="21M" size={140} depth={50} layers={14} /></Obj>
-      <Billboard x={0} y={-232} z={40} cam={cam}><div style={{ ...NW, fontFamily: FONT, fontWeight: 800, fontSize: 40, color: C.text }}>riders in the study</div></Billboard>
-      <Billboard x={0} y={100} z={230} cam={cam} style={{ opacity: fade(lf, 120, 140) }}>
-        <Chip bg={C.red} color="#fff" size={32}>demand drops &darr;</Chip>
-      </Billboard>
-      <Billboard x={carX} y={FLOOR - 62} z={-320} cam={cam}><Spr svg={car({ rot: f * 12 })} w={300} h={124} /></Billboard>
-    </Stage>
+      <div style={{ position: "absolute", left: 600, width: 340, top: 800, textAlign: "center", opacity: fade(lf, 120, 140), transform: `scale(${0.8 + 0.2 * pop(lf, 120, 9)})` }}><Chip bg={P.red} color="#fff" size={38}>demand drops &darr;</Chip></div>
+      <div style={{ position: "absolute", left: 0, right: 0, top: BASE + 12, height: 110, background: "#087a6e" }} />
+      <div style={{ position: "absolute", left: 0, right: 0, top: BASE + 62, height: 8, backgroundImage: "repeating-linear-gradient(90deg, #fff 0 40px, transparent 40px 80px)", backgroundPosition: `${-f * 6}px 0` }} />
+      <Art svg={car({ rot: f * 12 })} left={carX} top={BASE + 14} width={200} height={83} />
+      <T top={BASE + 134} size={28} weight={400} color="rgba(255,255,255,0.8)" left={520} right={30} style={{ textAlign: "right", opacity: fade(lf, 120, 150) }}>Illustration, not actual data</T>
+    </>
   );
 };
 
 const S4 = ({ lf, f }) => {
-  const cam = { z: L(lf, 0, 195, -80, 120), rx: -8 + shake(lf, 60, 1.4), ry: Math.sin(lf / 40) * 9 + shake(lf, 60, 1.8) };
   const n = Math.round(interpolate(lf, [0, 60], [0, 160], clamp));
   const stack = Math.min(9, Math.max(1, Math.ceil(n / 18)));
-  const ring = fade(lf, 58, 90);
-  const coins = [];
-  for (let i = 0; i < 12; i++) {
-    const y = ((lf * (7 + (i % 3) * 2) + i * 170) % 1300) - 650;
-    coins.push(<Obj key={i} x={-440 + ((i * 83) % 880)} y={y} z={-200 + (i % 4) * 120} s={0.6 + (i % 3) * 0.18}><Coin3D size={110} spin={lf * (6 + (i % 4) * 2) + i * 30} tilt={20 * Math.sin(lf / 20 + i)} /></Obj>);
-  }
+  const hit = lf >= 60 ? Math.exp(-(lf - 60) / 6) * Math.sin((lf - 60) * 2.4) : 0;
+  const bills = [0, 1, 2, 3, 4, 5, 6, 7];
   return (
-    <Stage cam={cam}>
-      <Floor y={FLOOR} scroll={f * 6} />
-      <Backdrop f={f} />
-      {lf >= 58 && lf < 110 ? <Obj x={0} y={-185} z={-80}><Rays t={fade(lf, 58, 108)} size={1000} /></Obj> : null}
-      <Obj x={0} y={-185} z={-40} s={ring * 1.5 + 0.2}><div style={{ width: 520, height: 520, borderRadius: "50%", border: `10px solid rgba(255,204,51,${0.7 * (1 - ring)})`, boxSizing: "border-box" }} /></Obj>
-      <Obj x={0} y={-185} z={0} ry={Math.sin(lf / 30) * 11}><Text3D text={`$${n}M`} size={240} depth={90} layers={20} /></Obj>
-      <Billboard x={0} y={-15} z={60} cam={cam} style={{ opacity: fade(lf, 60, 80) }}><div style={{ ...NW, fontFamily: FONT, fontWeight: 900, fontSize: 60, color: C.text, textShadow: "0 6px 24px rgba(0,0,0,0.6)" }}>extra profit per year</div></Billboard>
-      <Billboard x={0} y={50} z={60} cam={cam} style={{ opacity: fade(lf, 70, 90) }}><div style={{ ...NW, fontFamily: FONT, fontSize: 38, color: "#c4cbe6", textShadow: "0 6px 24px rgba(0,0,0,0.6)" }}>researchers’ estimate for Lyft</div></Billboard>
-      {coins}
-      {[0, 1, 2, 3, 4, 5].map((i) => (
-        <Obj key={"b" + i} x={-380 + i * 150} y={((lf * (3 + (i % 3)) + i * 230) % 1100) - 550} z={-60 + (i % 3) * 90} rx={lf * 3 + i * 40} ry={Math.sin(lf / 12 + i) * 50} rz={(i % 3 - 1) * 20}>
-          <Spr svg={bill()} w={150} h={75} />
-        </Obj>
+    <>
+      <Burst cx={540} cy={780} rot={-f * 0.7} k={1 + 0.15 * Math.sin(f / 15)} color="rgba(255,255,255,0.14)" />
+      {bills.map((i) => (
+        <Art key={i} svg={bill()} left={40 + ((i * 131) % 860)} top={470 + ((lf * (5 + (i % 3) * 2) + i * 190) % 1400)} width={150} height={75}
+          style={{ transform: `rotate(${(i % 5 - 2) * 16 + Math.sin((f + i * 9) / 14) * 20}deg)`, filter: "drop-shadow(0 8px 0 rgba(0,0,0,0.15))" }} />
       ))}
-      <Obj x={-300} y={FLOOR - 40} z={130} s={1.05}><CoinPile n={stack} size={170} /></Obj>
-    </Stage>
+      {[0, 1, 2, 3, 4].map((i) => (
+        <div key={"c" + i} style={{ position: "absolute", left: 80 + ((i * 211) % 820), top: 470 + ((lf * (6 + (i % 3) * 2) + i * 300) % 1400) }}><Coin2D size={90 + (i % 2) * 24} f={f} seed={i} /></div>
+      ))}
+      <T top={640 + hit * 14} size={270} shadow={SHADOW[3]} sd={12} style={{ transform: `scale(${pop(lf, 0, 12)}) rotate(${hit * 2}deg)` }}>{`$${n}M`}</T>
+      <T top={940} size={60} weight={900} style={{ opacity: fade(lf, 60, 80) }}>extra profit per year</T>
+      <T top={1018} size={38} weight={700} color="rgba(255,255,255,0.85)" style={{ opacity: fade(lf, 70, 90) }}>researchers’ estimate for Lyft</T>
+      <Art svg={coins(stack)} left={880} top={1010} width={110} height={211} />
+    </>
   );
 };
 
-const cart = (c) => `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 200 160"><path d="M52 40 H178 L160 100 H62 Z" fill="${c}" opacity="0.95"/><path d="M10 20 H40 L60 100 H160" fill="none" stroke="#fff" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/><circle cx="76" cy="130" r="14" fill="#fff"/><circle cx="148" cy="130" r="14" fill="#fff"/></svg>`;
+const cart = (c) => `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 200 160"><path d="M52 40 H178 L160 100 H62 Z" fill="${c}"/><path d="M10 20 H40 L60 100 H160" fill="none" stroke="#fff" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/><circle cx="76" cy="130" r="14" fill="#fff"/><circle cx="148" cy="130" r="14" fill="#fff"/></svg>`;
 
 const S5 = ({ lf, f }) => {
-  const cam = { z: L(lf, 0, 150, 0, 60), rx: -10 + shake(lf, 86, 1), ry: L(lf, 0, 150, 10, -10) + shake(lf, 86, 1.4) };
-  const cartX = L(lf, 20, 85, 760, 110);
-  const flip = ease(fade(lf, 50, 74));
+  const cartX = L(lf, 20, 85, 1100, 430);
+  const rib = pop(lf, 50, 9);
+  const swing = Math.sin(f / 9) * 9;
   return (
-    <Stage cam={cam}>
-      <Floor y={FLOOR} scroll={f * 4} />
-      <Backdrop f={f} />
-      <Obj x={0} y={-255} z={0} s={pop(lf, 0, 9)} ry={Math.sin(lf / 16) * 11}><Text3D text="$9.99" size={210} depth={70} layers={16} /></Obj>
-      <Obj x={0} y={FLOOR - 22} z={0}><Box3D w={780} h={44} d={420} color="#2c3f82" shade="#18224d" topColor="#3d56a8" /></Obj>
-      <Billboard x={-220} y={FLOOR - 44 - 145} z={0} cam={cam} style={{ opacity: fade(lf, 6, 22) }}><Spr svg={store()} w={350} h={290} /></Billboard>
-      <Obj x={310} y={-5} z={90} ry={Math.sin(f / 10) * 28} rz={Math.sin(f / 9) * 6}><Tag3D text="$9.99" w={240} /></Obj>
-      <Billboard x={cartX} y={FLOOR - 44 - 80} z={110} cam={cam}><Spr svg={cart(C.teal)} w={200} h={160} /></Billboard>
-      {lf >= 74 && lf < 110 ? <Obj x={0} y={-110} z={100}><Ring t={fade(lf, 74, 108)} size={520} color="53,208,192" width={8} /></Obj> : null}
-      <Obj x={0} y={-110} z={130} rx={(1 - flip) * 90} s={Math.max(flip, 0.001)}>
-        <Box3D w={600} h={74} d={24} color={C.teal} shade="#1f8b80" topColor="#9ff5ec">
-          <span style={{ fontFamily: FONT, fontWeight: 900, fontSize: 42, color: C.ink, whiteSpace: "nowrap" }}>a nudge for your brain</span>
-        </Box3D>
-      </Obj>
-    </Stage>
-  );
-};
-
-/* full-body turntable built from the front / 3/4 / side / back views */
-const TURN = [["front", 0, 1], ["three", 45, 1], ["side", 90, 1], ["back", 180, 1], ["side", 270, -1], ["three", 315, -1]];
-const Turn = ({ theta, h }) => {
-  let best = TURN[0], bd = 999;
-  TURN.forEach((v) => {
-    const d = ((theta - v[1] + 540) % 360) - 180;
-    if (Math.abs(d) < Math.abs(bd)) { bd = d; best = v; }
-  });
-  return (
-    <div style={{ width: 340, height: h, display: "flex", justifyContent: "center", alignItems: "flex-end", transformStyle: "preserve-3d" }}>
-      <div style={{ transform: `rotateY(${bd * 0.85}deg) scaleX(${best[2]})`, filter: "drop-shadow(0 0 14px rgba(53,208,192,0.55))" }}><Sprite name={best[0]} h={h} /></div>
-    </div>
+    <>
+      <T top={560} size={270} color={P.gold} shadow={SHADOW[4]} sd={14} style={{ transform: `scale(${pop(lf, 0, 9)})` }}>$9.99</T>
+      <div style={{ position: "absolute", left: 0, right: 0, top: 850, textAlign: "center", opacity: Math.min(rib, 1), transform: `scale(${Math.max(rib, 0.001)})` }}><Chip size={54}>a nudge for your brain</Chip></div>
+      <div style={{ position: "absolute", left: 430, right: 0, top: 1196, height: 8, borderRadius: 4, background: "rgba(255,255,255,0.35)" }} />
+      <Art svg={store()} left={620} top={900} width={370} height={308} style={{ opacity: fade(lf, 6, 20), transform: `translateY(${(1 - ease(fade(lf, 6, 22))) * 80}px)` }} />
+      <Art svg={tag("$9.99", 46)} left={110} top={930} width={300} height={191} style={{ transformOrigin: "30% 0%", transform: `rotate(${swing}deg) scale(${pop(lf, 18, 8)})`, filter: "drop-shadow(0 12px 0 rgba(0,0,0,0.2))" }} />
+      <Art svg={cart(P.teal)} left={cartX} top={1050} width={190} height={152} />
+    </>
   );
 };
 
 const S6 = ({ lf, f }) => {
-  const cam = { z: L(lf, 0, 90, 60, -90), rx: -7 + shake(lf, 70, 1.2), ry: Math.sin(lf / 22) * 5 };
-  const theta = L(lf, 6, 70, 0, 360);
-  const coins = [];
-  for (let i = 0; i < 6; i++) {
-    const y = ((lf * (5 + (i % 3) * 2) + i * 190) % 1200) - 600;
-    coins.push(<Obj key={i} x={-420 + ((i * 163) % 840)} y={y} z={-100 + (i % 3) * 140} s={0.7}><Coin3D size={100} spin={lf * (7 + (i % 3) * 2) + i * 40} tilt={16 * Math.sin(lf / 18 + i)} /></Obj>);
-  }
+  const k = pop(lf, 0, 9);
   return (
-    <Stage cam={cam}>
-      <Floor y={FLOOR} scroll={f * 4} />
-      <Backdrop f={f} />
-      <Obj x={0} y={-40} z={-380}><Gear3D size={560} spin={f * 0.8} color="#6d4f08" front="#a67a0c" depth={70} /></Obj>
-      <Obj x={0} y={-335} z={0} s={pop(lf, 0, 10)} ry={Math.sin(lf / 14) * 8}><Text3D text="Hidden Mechanics" size={104} depth={44} layers={14} /></Obj>
-      <Billboard x={0} y={-250} z={30} cam={cam} style={{ opacity: fade(lf, 22, 38) }}><div style={{ ...NW, fontFamily: FONT, fontWeight: 800, fontSize: 48, color: "#c4cbe6" }}>@hiddenmechanicsfacts</div></Billboard>
-      <Obj x={0} y={FLOOR} z={0} rx={90}>
-        <div style={{ width: 430, height: 430, borderRadius: "50%", border: "6px solid rgba(53,208,192,0.9)", boxShadow: "0 0 40px rgba(53,208,192,0.7), inset 0 0 50px rgba(53,208,192,0.4)", background: "radial-gradient(circle, rgba(53,208,192,0.30), rgba(10,20,50,0.2) 70%)", boxSizing: "border-box" }} />
-      </Obj>
-      {coins}
-      <Billboard x={0} y={FLOOR - 255} z={20} cam={cam} s={pop(lf, 2, 10)}><Turn theta={theta} h={510} /></Billboard>
-    </Stage>
+    <>
+      <Burst cx={540} cy={760} rot={f * 0.6} color="rgba(255,255,255,0.08)" />
+      <div style={{ position: "absolute", left: 540 - 150, top: 560, transform: `scale(${k})` }}><Gear size={300} color={P.gold} rot={f * 1.6} /></div>
+      <div style={{ position: "absolute", left: 200, top: 600 + Math.sin(f / 10) * 10, transform: `scale(${pop(lf, 14, 9)})` }}><Coin2D size={110} f={f} /></div>
+      <div style={{ position: "absolute", left: 790, top: 700 + Math.sin(f / 9) * 10, transform: `scale(${pop(lf, 20, 9)})` }}><Coin2D size={90} f={f} seed={3} /></div>
+      <T top={880} size={100} style={{ transform: `scale(${pop(lf, 8, 10)})`, textShadow: "8px 8px 0 rgba(0,0,0,0.35)" }}>Hidden <span style={{ color: P.gold }}>Mechanics</span></T>
+      <T top={1010} size={52} weight={800} color="#aeb9e6" style={{ opacity: fade(lf, 22, 38) }}>@hiddenmechanicsfacts</T>
+    </>
   );
 };
-
 const SCENES = [S1, S2, S3, S4, S5, S6];
 
-/* ---------- mascot "host window" with pop-out character ---------- */
-const HOST = { left: 190, top: 1335, w: 700, h: 430 };
-const POSE = { present: { h: 500, dx: -12 }, think: { h: 500, dx: 0 }, idea: { h: 520, dx: 4 }, talk: { h: 540, dx: -36 }, wow: { h: 520, dx: 0 } };
-const EVENTS = [[0, "wow"], [STARTS[1], "present"], [STARTS[1] + 190, "idea"], [STARTS[2], "think"], [STARTS[2] + 135, "wow"], [STARTS[3], "talk"], [STARTS[4], "idea"], [STARTS[4] + 85, "present"]];
-const CLIP = `polygon(-2000px -2000px, 3000px -2000px, 3000px ${HOST.h}px, -2000px ${HOST.h}px)`;
+/* ---------- mascot (bottom-left, fully in frame) ---------- */
+const MS = { left: 4, top: 1160, h: 600 };
+const MW = (MS.h * 480) / 700;
+const EVENTS = [
+  [0, "wow", "wow", "Wait…?"],
+  [STARTS[1], "present", "grin", "Look closely!"],
+  [STARTS[1] + 190, "idea", "happy", "Aha!"],
+  [STARTS[2], "think", "think", "Hmm…"],
+  [STARTS[2] + 135, "wow", "wow", "Whoa!"],
+  [STARTS[3], "cheer", "grin", "Cha-ching!"],
+  [STARTS[4], "thumbs", "grin", "Gotcha!"],
+  [STARTS[5], "wave", "smile", "See you!"],
+];
 
-const PoseImg = ({ pose, style }) => {
-  const c = POSE[pose];
-  const sw = spriteW(pose, c.h);
-  return <div style={{ position: "absolute", left: (HOST.w - sw) / 2 + c.dx, top: HOST.h - c.h, width: sw, height: c.h, ...style }}><Sprite name={pose} h={c.h} /></div>;
-};
-
-const Corner = ({ x, y, rx, ry }) => (
-  <div style={{ position: "absolute", left: x, top: y, width: 44, height: 44, borderTop: ry ? "none" : "5px solid #35d0c0", borderBottom: ry ? "5px solid #35d0c0" : "none", borderLeft: rx ? "none" : "5px solid #35d0c0", borderRight: rx ? "5px solid #35d0c0" : "none", borderRadius: 6, filter: "drop-shadow(0 0 8px #35d0c0)" }} />
+const Bulb = ({ f }) => (
+  <svg width="120" height="140" viewBox="0 0 120 140" style={{ overflow: "visible" }}>
+    {[0, 1, 2, 3, 4, 5, 6].map((i) => <line key={i} x1="60" y1="52" x2={60 + Math.cos(-Math.PI + (i * Math.PI) / 6) * 92} y2={52 + Math.sin(-Math.PI + (i * Math.PI) / 6) * 92} stroke={P.gold} strokeWidth="8" strokeLinecap="round" strokeDasharray="14 80" strokeDashoffset={-((f * 3) % 40) + 8} />)}
+    <path d="M60 8 C28 8 14 34 22 58 C28 72 40 80 40 96 L80 96 C80 80 92 72 98 58 C106 34 92 8 60 8 Z" fill={P.gold} stroke="#e09b00" strokeWidth="5" />
+    <rect x="42" y="100" width="36" height="12" rx="5" fill="#c9ccd6" /><rect x="48" y="114" width="24" height="10" rx="5" fill="#9aa0b4" />
+  </svg>
 );
 
-const Emotion = ({ pose, age, f }) => {
-  const k = pop(age, 4, 9);
-  if (pose === "think")
-    return <div style={{ position: "absolute", left: 548, top: -120 + Math.sin(f / 9) * 10, fontFamily: FONT, fontWeight: 900, fontSize: 170, color: "#35d0c0", textShadow: "0 0 34px #35d0c0, 0 0 8px #fff", transform: `scale(${k}) rotate(${Math.sin(f / 12) * 8}deg)` }}>?</div>;
-  if (pose === "wow")
-    return (
-      <>
-        <div style={{ position: "absolute", left: 560, top: -110 + Math.sin(f / 7) * 8, fontFamily: FONT, fontWeight: 900, fontSize: 170, color: "#ffcc33", textShadow: "0 0 34px #ff9a00, 0 0 8px #fff", transform: `scale(${k}) rotate(${10 + Math.sin(f / 8) * 6}deg)` }}>!</div>
-        {age < 40 ? <div style={{ position: "absolute", left: 350, top: 130, transform: "translate(-50%,-50%)" }}><Ring t={fade(age, 0, 38)} size={420} color="255,204,51" width={8} /></div> : null}
-      </>
-    );
-  if (pose === "idea")
-    return <div style={{ position: "absolute", left: 556, top: -28, transform: "translate(-50%,-50%)" }}><Rays t={(age % 60) / 60} size={330} color="255,226,120" /></div>;
-  return null;
-};
-
-const Host = ({ f }) => {
-  const s = sceneOf(f);
+const Mascot = ({ f }) => {
   let idx = 0;
   EVENTS.forEach(([fr], i) => { if (f >= fr) idx = i; });
-  const [fr, pose] = EVENTS[idx];
-  const prev = EVENTS[Math.max(0, idx - 1)][1];
+  const [fr, pose, mood, say] = EVENTS[idx];
   const age = f - fr;
-  const exit = s === 5 ? ease(fade(f - STARTS[5], 0, 14)) : 0;
-  const sp = speech(f);
-  const inK = pop(age, 0, 10);
+  const { speaking, cur } = lineState(f);
+  const talk = speaking ? 0.5 + 0.5 * Math.abs(Math.sin(f * 0.75 + cur)) : 0;
+  const k = pop(age, 0, 8);
+  const sx = 0.86 + 0.14 * k, sy = 1.18 - 0.18 * k;
+  const bob = Math.sin(f / 14) * 5;
+  const wave = pose === "wave" ? Math.sin(f / 4) * 10 - 4 : 0;
   return (
-    <div style={{ position: "absolute", left: HOST.left, top: HOST.top + exit * 820, width: HOST.w, height: HOST.h, perspective: 1300 }}>
-      <div style={{ position: "absolute", inset: 0, transformStyle: "preserve-3d", transform: `translateY(${Math.sin(f / 18) * 4}px) rotateY(${Math.sin(f / 42) * 7}deg) rotateX(${Math.sin(f / 57) * 2.5}deg)` }}>
-        <div style={{ position: "absolute", inset: 0, borderRadius: 40, border: "3px solid rgba(53,208,192,0.9)", background: "linear-gradient(165deg, rgba(26,56,118,0.94), rgba(7,14,38,0.96))", boxShadow: "0 0 44px rgba(53,208,192,0.5), inset 0 0 70px rgba(53,208,192,0.2)", overflow: "hidden" }}>
-          <div style={{ position: "absolute", left: "50%", top: "62%", width: 1000, height: 1000, marginLeft: -500, marginTop: -500, background: "repeating-conic-gradient(rgba(255,255,255,0.07) 0deg 7deg, transparent 7deg 18deg)", transform: `rotate(${f * 0.35}deg)` }} />
-          <div style={{ position: "absolute", inset: 0, backgroundImage: "radial-gradient(rgba(255,255,255,0.09) 2px, transparent 2px)", backgroundSize: "34px 34px" }} />
-          <div style={{ position: "absolute", left: 26, bottom: 22, display: "flex", alignItems: "center", gap: 10, fontFamily: FONT, fontWeight: 900, fontSize: 24, letterSpacing: 3, color: "#7fe9de" }}>
-            <div style={{ width: 14, height: 14, borderRadius: "50%", background: "#ff5a6e", boxShadow: "0 0 12px #ff5a6e", opacity: 0.6 + 0.4 * Math.sin(f / 6) }} />HOST
-          </div>
-        </div>
-        <div style={{ position: "absolute", inset: 0, transform: "translateZ(30px)", clipPath: CLIP }}>
-          <PoseImg pose={pose} style={{ transform: `translate(14px, 12px)`, filter: "brightness(0) blur(7px)", opacity: 0.42 * fade(age, 0, 5) }} />
-        </div>
-        <div style={{ position: "absolute", inset: 0, transform: "translateZ(70px)", clipPath: CLIP }}>
-          {age < 7 ? <PoseImg pose={prev} style={{ opacity: 1 - fade(age, 0, 6) }} /> : null}
-          <PoseImg pose={pose} style={{ opacity: fade(age, 0, 4), transformOrigin: "50% 100%", transform: `scale(${(0.82 + 0.18 * inK) * (1 + 0.03 * sp)}) translateY(${-9 * sp}px) rotate(${(1 - inK) * -4}deg)`, filter: "drop-shadow(0 0 10px rgba(53,208,192,0.45))" }} />
-        </div>
-        <div style={{ position: "absolute", inset: 0, transform: "translateZ(110px)" }}>
-          <Emotion pose={pose} age={age} f={f} />
-        </div>
-        <div style={{ position: "absolute", inset: 0, transform: "translateZ(40px)" }}>
-          <Corner x={14} y={14} rx={0} ry={0} /><Corner x={642} y={14} rx={1} ry={0} /><Corner x={14} y={372} rx={0} ry={1} /><Corner x={642} y={372} rx={1} ry={1} />
+    <>
+      <Art svg={mascot({ pose, mood, talk, blink: f % 100 < 4, wave, look: Math.sin(f / 40) })} left={MS.left} top={MS.top + bob} width={MW} height={MS.h}
+        style={{ transformOrigin: "50% 100%", transform: `scale(${sx}, ${sy}) rotate(${Math.sin(f / 30) * 1.2}deg)` }} />
+      {pose === "idea" ? <div style={{ position: "absolute", left: 262, top: 1150 + bob, transform: `scale(${pop(age, 6, 8)})` }}><Bulb f={f} /></div> : null}
+      <div style={{ position: "absolute", left: 380, top: 1206, transformOrigin: "0% 100%", transform: `scale(${Math.max(pop(age, 4, 9), 0.001)})`, opacity: fade(age, 2, 8) }}>
+        <div style={{ position: "relative", background: P.white, borderRadius: 34, padding: "14px 34px", fontFamily: FONT, fontWeight: 900, fontSize: 54, color: P.navy, whiteSpace: "nowrap", boxShadow: "0 8px 0 rgba(20,34,79,0.25)" }}>
+          {say}
+          <div style={{ position: "absolute", left: 26, bottom: -22, width: 0, height: 0, borderLeft: "20px solid transparent", borderRight: "20px solid transparent", borderTop: `28px solid ${P.white}`, transform: "skewX(20deg)" }} />
         </div>
       </div>
-    </div>
+    </>
   );
-};
-
-/* ---------- scene-change wipe ---------- */
-const Wipe = ({ f }) => {
-  const bands = [];
-  STARTS.slice(1).forEach((st, i) => {
-    const lf = f - (st - 6);
-    if (lf < 0 || lf > 22) return;
-    const k = ease(fade(lf, 0, 22));
-    const x = -1500 + k * 3200;
-    bands.push(
-      <React.Fragment key={i}>
-        <div style={{ position: "absolute", top: -100, left: x, width: 760, height: 2200, background: C.teal, transform: "skewX(-18deg)" }} />
-        <div style={{ position: "absolute", top: -100, left: x - 360, width: 420, height: 2200, background: C.gold, transform: "skewX(-18deg)" }} />
-      </React.Fragment>
-    );
-  });
-  return <div style={{ position: "absolute", inset: 0, overflow: "hidden", pointerEvents: "none" }}>{bands}</div>;
 };
 
 const Video = () => {
@@ -433,24 +361,24 @@ const Video = () => {
   const s = sceneOf(f);
   const lf = f - STARTS[s];
   const Scene = SCENES[s];
+  const sh = (a, amp) => (f >= a ? amp * Math.exp(-(f - a) / 6) * Math.sin((f - a) * 2.4) : 0);
+  const shakeX = sh(STARTS[3] + 60, 9) + sh(STARTS[1] + 132, 4);
   return (
-    <AbsoluteFill style={{ backgroundColor: C.bg }}>
-      <Background />
-      <Scene lf={lf} f={f} />
-      <Wipe f={f} />
-      <Vignette />
+    <AbsoluteFill style={{ backgroundColor: P.navy }}>
+      <Background f={f} />
+      <AbsoluteFill style={{ transform: `translateX(${shakeX}px)` }}>
+        <Scene lf={Math.max(0, lf - 4)} f={f} />
+      </AbsoluteFill>
       <Badge text={BADGES[s]} lf={lf} />
-      {s === 2 ? <div style={{ position: "absolute", left: 600, right: 40, top: 1295, textAlign: "right", fontFamily: FONT, fontSize: 28, color: C.dim, opacity: fade(lf, 120, 150) }}>Illustration, not actual data</div> : null}
-      <Subtitles />
-      <Host f={f} />
-      <Confetti f={f} start={STARTS[0] + 8} n={34} cx={540} cy={990} life={70} seed={1} />
-      <Stars f={f} start={STARTS[1] + 40} n={12} cx={500} cy={850} spread={260} life={50} seed={2} />
-      <Stars f={f} start={STARTS[2] + 36} n={14} cx={540} cy={1050} spread={420} life={60} seed={3} />
+      <Subtitles f={f} />
+      <Mascot f={f} />
+      <Confetti f={f} start={STARTS[0] + 8} n={34} cx={540} cy={860} seed={1} />
+      <Stars f={f} start={STARTS[1] + 40} n={10} cx={420} cy={760} spread={240} seed={2} />
+      <Stars f={f} start={STARTS[2] + 40} n={12} cx={540} cy={900} spread={400} seed={3} />
       <Confetti f={f} start={STARTS[3] + 60} n={70} cx={540} cy={800} life={90} seed={4} />
-      <Flash f={f} start={STARTS[3] + 60} strength={0.45} />
-      <Stars f={f} start={STARTS[4] + 74} n={14} cx={540} cy={980} spread={380} life={60} seed={5} />
-      <Confetti f={f} start={STARTS[5] + 70} n={80} cx={540} cy={980} life={100} seed={6} power={1.15} />
-      <Flash f={f} start={STARTS[5] + 70} strength={0.4} />
+      <Flash f={f} start={STARTS[3] + 60} strength={0.5} />
+      <Stars f={f} start={STARTS[4] + 52} n={12} cx={540} cy={900} spread={380} seed={5} color={P.gold} />
+      <Confetti f={f} start={STARTS[5] + 40} n={60} cx={540} cy={700} life={50} seed={6} />
     </AbsoluteFill>
   );
 };

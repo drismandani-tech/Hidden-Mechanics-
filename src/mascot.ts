@@ -1,61 +1,85 @@
-const INK = "#10162e";
-const SKIN = "#ffe3bd";
-const HAT = "#ffcc33";
-const VEST = "#35d0c0";
-
-const gear = (cx, cy, r, color) => {
-  let teeth = "";
-  for (let i = 0; i < 8; i++)
-    teeth += `<rect x="${cx - 4}" y="${cy - r - 5}" width="8" height="11" rx="2" fill="${color}" transform="rotate(${i * 45} ${cx} ${cy})"/>`;
-  return `${teeth}<circle cx="${cx}" cy="${cy}" r="${r}" fill="${color}"/><circle cx="${cx}" cy="${cy}" r="${r * 0.42}" fill="${HAT}"/>`;
-};
+/* Flat-vector mascot (red-hoodie boy), full body. viewBox -40 0 480 700 */
+const INK = "#1b1424";
+const SKIN = "#f9c49a", SKIN_D = "#e2a177";
+const HAIR = "#2a1b17", HAIR_L = "#4b2f26";
+const RED = "#e0292d", RED_D = "#a81a1f", RED_L = "#f0484a";
+const PANTS = "#262833", PANTS_D = "#16171f", PANTS_L = "#363948";
+const WHITE = "#ffffff";
 
 const POSES = {
-  point:   { L: [120, 420, 60, 470, 80, 548, 0], R: [300, 420, 395, 395, 352, 285, 1] },
-  think:   { L: [120, 420, 60, 470, 80, 548, 0], R: [300, 420, 345, 360, 250, 352, 0] },
-  wow:     { L: [120, 420, 30, 380, 98, 285, 0], R: [300, 420, 390, 380, 322, 285, 0] },
-  thumbs:  { L: [120, 420, 60, 470, 80, 548, 0], R: [300, 420, 392, 430, 352, 340, 2] },
-  wave:    { L: [120, 420, 60, 470, 80, 548, 0], R: [300, 420, 395, 340, 365, 235, 0] },
-  present: { L: [120, 420, 60, 470, 80, 548, 0], R: [300, 420, 380, 470, 405, 400, 0] },
+  rest:    { L: [115, 335, 62, 430, 72, 520, "fist"], R: [285, 335, 338, 430, 328, 520, "fist"] },
+  wow:     { L: [115, 335, 28, 300, 108, 240, "fist"], R: [285, 335, 372, 300, 292, 240, "fist"] },
+  present: { L: [115, 335, 62, 430, 72, 520, "fist"], R: [285, 335, 365, 380, 392, 318, "open"] },
+  idea:    { L: [115, 335, 62, 430, 72, 520, "fist"], R: [285, 335, 372, 290, 336, 168, "point"] },
+  think:   { L: [115, 335, 62, 430, 72, 520, "fist"], R: [285, 335, 318, 296, 238, 282, "fist"] },
+  cheer:   { L: [115, 335, 34, 260, 52, 128, "fist"], R: [285, 335, 366, 260, 348, 128, "fist"] },
+  thumbs:  { L: [115, 335, 62, 430, 72, 520, "fist"], R: [285, 335, 376, 360, 350, 262, "thumb"] },
+  wave:    { L: [115, 335, 62, 430, 72, 520, "fist"], R: [285, 335, 378, 290, 352, 176, "open"] },
 };
 
-export const mascot = ({ pose = "point", mood = "smile", blink = false } = {}) => {
-  const P = POSES[pose] || POSES.point;
-  const arm = ([sx, sy, cx, cy, hx, hy, extra]) => {
-    const d = `M${sx} ${sy} Q${cx} ${cy} ${hx} ${hy}`;
-    let hand = `<circle cx="${hx}" cy="${hy}" r="24" fill="${SKIN}" stroke="${INK}" stroke-width="6"/>`;
-    if (extra === 1) hand = `<rect x="${hx - 11}" y="${hy - 58}" width="22" height="64" rx="11" fill="${SKIN}" stroke="${INK}" stroke-width="6"/>` + hand;
-    if (extra === 2) hand = `<rect x="${hx - 10}" y="${hy - 54}" width="20" height="50" rx="10" fill="${SKIN}" stroke="${INK}" stroke-width="6"/>` + hand;
-    return `<path d="${d}" fill="none" stroke="${INK}" stroke-width="46" stroke-linecap="round"/><path d="${d}" fill="none" stroke="${VEST}" stroke-width="34" stroke-linecap="round"/>${hand}`;
-  };
-  const eyes = blink
-    ? `<path d="M148 235 Q165 245 182 235" stroke="${INK}" stroke-width="6" fill="none" stroke-linecap="round"/><path d="M238 235 Q255 245 272 235" stroke="${INK}" stroke-width="6" fill="none" stroke-linecap="round"/>`
-    : `<ellipse cx="165" cy="235" rx="15" ry="${mood === "wow" ? 21 : 18}" fill="#fff" stroke="${INK}" stroke-width="5"/><ellipse cx="255" cy="235" rx="15" ry="${mood === "wow" ? 21 : 18}" fill="#fff" stroke="${INK}" stroke-width="5"/><circle cx="168" cy="238" r="8" fill="${INK}"/><circle cx="252" cy="238" r="8" fill="${INK}"/>`;
-  const brows = mood === "worry"
-    ? `<path d="M140 205 L184 218" stroke="${INK}" stroke-width="7" stroke-linecap="round"/><path d="M280 205 L236 218" stroke="${INK}" stroke-width="7" stroke-linecap="round"/>`
-    : mood === "wow"
-    ? `<path d="M142 195 Q165 178 188 195" stroke="${INK}" stroke-width="7" fill="none" stroke-linecap="round"/><path d="M232 195 Q255 178 278 195" stroke="${INK}" stroke-width="7" fill="none" stroke-linecap="round"/>`
-    : `<path d="M142 208 Q165 196 188 208" stroke="${INK}" stroke-width="7" fill="none" stroke-linecap="round"/><path d="M232 208 Q255 196 278 208" stroke="${INK}" stroke-width="7" fill="none" stroke-linecap="round"/>`;
-  const mouth = mood === "wow"
-    ? `<ellipse cx="210" cy="305" rx="19" ry="25" fill="#7a2f3a" stroke="${INK}" stroke-width="6"/>`
-    : mood === "grin"
-    ? `<path d="M165 285 Q210 345 255 285 Z" fill="#7a2f3a" stroke="${INK}" stroke-width="6" stroke-linejoin="round"/><path d="M182 300 Q210 322 238 300 Q210 312 182 300Z" fill="#fff"/>`
-    : mood === "worry"
-    ? `<path d="M185 308 Q210 288 235 308" stroke="${INK}" stroke-width="7" fill="none" stroke-linecap="round"/>`
-    : `<path d="M175 290 Q210 328 245 290" stroke="${INK}" stroke-width="7" fill="none" stroke-linecap="round"/>`;
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 420 560">
-  <path d="M105 560 L105 440 Q105 385 160 378 L260 378 Q315 385 315 440 L315 560 Z" fill="${VEST}" stroke="${INK}" stroke-width="7" stroke-linejoin="round"/>
-  <path d="M170 378 L210 430 L250 378 Z" fill="#fff" stroke="${INK}" stroke-width="6" stroke-linejoin="round"/>
-  <rect x="190" y="470" width="40" height="46" rx="8" fill="${HAT}" stroke="${INK}" stroke-width="5"/>
-  ${arm(P.L)}
-  <rect x="180" y="340" width="60" height="50" rx="16" fill="${SKIN}" stroke="${INK}" stroke-width="6"/>
-  <circle cx="210" cy="235" r="132" fill="${SKIN}" stroke="${INK}" stroke-width="7"/>
-  <g transform="translate(0 22)"><ellipse cx="128" cy="262" rx="20" ry="13" fill="#ffb8a8" opacity="0.7"/><ellipse cx="292" cy="262" rx="20" ry="13" fill="#ffb8a8" opacity="0.7"/>
-  ${eyes}${brows}${mouth}</g>
-  <path d="M78 205 Q78 70 210 70 Q342 70 342 205 Z" fill="${HAT}" stroke="${INK}" stroke-width="7" stroke-linejoin="round"/>
-  <rect x="58" y="190" width="304" height="34" rx="17" fill="#f0b81e" stroke="${INK}" stroke-width="7"/>
-  <rect x="192" y="40" width="36" height="40" rx="10" fill="#f0b81e" stroke="${INK}" stroke-width="6"/>
-  ${gear(210, 138, 30, INK)}
-  ${arm(P.R)}
-  </svg>`;
+const hand = (x, y, kind) => {
+  const s = `stroke="${SKIN_D}" stroke-width="4" stroke-linejoin="round"`;
+  let g = `<circle cx="${x}" cy="${y}" r="27" fill="${SKIN}" ${s}/>`;
+  if (kind === "point") g = `<rect x="${x - 10}" y="${y - 62}" width="20" height="58" rx="10" fill="${SKIN}" ${s}/>` + g;
+  if (kind === "thumb") g = `<rect x="${x - 10}" y="${y - 58}" width="20" height="52" rx="10" fill="${SKIN}" ${s}/>` + g;
+  if (kind === "open")
+    g = [-26, -9, 9, 26].map((dx, i) => `<rect x="${x + dx - 8}" y="${y - 58 + (i === 0 || i === 3 ? 10 : 0)}" width="16" height="50" rx="8" fill="${SKIN}" ${s}/>`).join("") + g;
+  return g;
+};
+
+const arm = ([sx, sy, cx, cy, hx, hy, kind]) => {
+  const d = `M${sx} ${sy} Q${cx} ${cy} ${hx} ${hy}`;
+  return `<path d="${d}" fill="none" stroke="${RED_D}" stroke-width="58" stroke-linecap="round"/><path d="${d}" fill="none" stroke="${RED}" stroke-width="46" stroke-linecap="round"/>` +
+    `<circle cx="${hx}" cy="${hy}" r="31" fill="${RED_D}"/>` + hand(hx, hy, kind);
+};
+
+export const mascot = ({ pose = "rest", mood = "smile", talk = 0, blink = false, look = 0, wave = 0 } = {}) => {
+  const P = POSES[pose] || POSES.rest;
+  const open = Math.min(1, talk);
+  const eyeY = 205;
+  const eyeR = mood === "wow" ? 22 : 19;
+  const up = mood === "think" ? 5 : 0;
+  const eye = (cx) => blink || mood === "happy"
+    ? `<path d="M${cx - 17} ${eyeY + 4} Q${cx} ${mood === "happy" ? eyeY - 14 : eyeY + 14} ${cx + 17} ${eyeY + 4}" fill="none" stroke="${INK}" stroke-width="7" stroke-linecap="round"/>`
+    : `<ellipse cx="${cx}" cy="${eyeY}" rx="17" ry="${eyeR}" fill="#fff" stroke="${INK}" stroke-width="4"/>` +
+      `<circle cx="${cx + look * 5}" cy="${eyeY + 2 - up}" r="12.5" fill="#8a4f2a"/><circle cx="${cx + look * 5}" cy="${eyeY + 2 - up}" r="6.5" fill="${INK}"/><circle cx="${cx + look * 5 + 4}" cy="${eyeY - 4 - up}" r="3.6" fill="#fff"/>`;
+  const brows =
+    mood === "wow" ? `<path d="M138 168 Q170 146 198 168" stroke="${HAIR}" stroke-width="9" fill="none" stroke-linecap="round"/><path d="M262 168 Q230 146 202 168" stroke="${HAIR}" stroke-width="9" fill="none" stroke-linecap="round"/>`
+    : mood === "think" ? `<path d="M140 176 Q170 160 198 172" stroke="${HAIR}" stroke-width="9" fill="none" stroke-linecap="round"/><path d="M264 160 Q236 148 204 164" stroke="${HAIR}" stroke-width="9" fill="none" stroke-linecap="round"/>`
+    : mood === "worry" ? `<path d="M140 172 L196 164" stroke="${HAIR}" stroke-width="9" stroke-linecap="round"/><path d="M260 172 L204 164" stroke="${HAIR}" stroke-width="9" stroke-linecap="round"/>`
+    : `<path d="M140 172 Q170 158 198 172" stroke="${HAIR}" stroke-width="9" fill="none" stroke-linecap="round"/><path d="M260 172 Q230 158 202 172" stroke="${HAIR}" stroke-width="9" fill="none" stroke-linecap="round"/>`;
+  const mouth =
+    mood === "wow" ? `<ellipse cx="200" cy="262" rx="${12 + open * 4}" ry="${16 + open * 6}" fill="#8c2f3a" stroke="${INK}" stroke-width="4"/>`
+    : mood === "think" ? `<path d="M182 262 Q200 256 222 266" stroke="${INK}" stroke-width="6" fill="none" stroke-linecap="round"/>`
+    : mood === "worry" ? `<path d="M182 268 Q200 252 218 268" stroke="${INK}" stroke-width="6" fill="none" stroke-linecap="round"/>`
+    : (mood === "grin" || open > 0.25)
+      ? `<path d="M170 250 Q200 ${268 + open * 26} 230 250 Z" fill="#8c2f3a" stroke="${INK}" stroke-width="4" stroke-linejoin="round"/><path d="M178 251 Q200 258 222 251 L220 258 Q200 264 180 258 Z" fill="#fff"/><ellipse cx="200" cy="${262 + open * 8}" rx="13" ry="${5 + open * 4}" fill="#ee6a7a"/>`
+      : `<path d="M174 250 Q200 276 226 250" stroke="${INK}" stroke-width="7" fill="none" stroke-linecap="round"/>`;
+  const spike = (d) => `<path d="${d}" fill="${HAIR}" stroke="#120b09" stroke-width="3" stroke-linejoin="round"/>`;
+  const head =
+    `<ellipse cx="124" cy="214" rx="17" ry="21" fill="${SKIN}" stroke="${SKIN_D}" stroke-width="4"/><ellipse cx="276" cy="214" rx="17" ry="21" fill="${SKIN}" stroke="${SKIN_D}" stroke-width="4"/>` +
+    `<ellipse cx="200" cy="202" rx="80" ry="86" fill="${SKIN}" stroke="${SKIN_D}" stroke-width="4"/>` +
+    `<ellipse cx="146" cy="240" rx="16" ry="10" fill="#ff9f8f" opacity="0.55"/><ellipse cx="254" cy="240" rx="16" ry="10" fill="#ff9f8f" opacity="0.55"/>` +
+    eye(168) + eye(232) + brows + mouth +
+    spike("M150 104 L146 64 L180 92 Z") + spike("M178 92 L190 46 L216 90 Z") + spike("M212 90 L244 52 L250 100 Z") + spike("M246 98 L290 78 L284 126 Z") +
+    `<path d="M114 206 C100 140 140 86 204 86 C268 86 304 142 286 206 C282 178 268 156 244 148 C236 164 226 160 214 138 C204 160 190 160 180 140 C170 160 150 160 140 150 C124 160 116 182 114 206 Z" fill="${HAIR}" stroke="#120b09" stroke-width="3" stroke-linejoin="round"/>` +
+    `<path d="M150 112 C170 96 200 92 226 98" fill="none" stroke="${HAIR_L}" stroke-width="9" stroke-linecap="round"/>`;
+  const legs =
+    `<path d="M128 455 L272 455 L268 600 L208 600 L200 520 L192 600 L132 600 Z" fill="${PANTS}" stroke="${PANTS_D}" stroke-width="4" stroke-linejoin="round"/>` +
+    `<rect x="104" y="500" width="34" height="62" rx="8" fill="${PANTS_L}" stroke="${PANTS_D}" stroke-width="4"/><rect x="262" y="500" width="34" height="62" rx="8" fill="${PANTS_L}" stroke="${PANTS_D}" stroke-width="4"/>` +
+    `<rect x="128" y="584" width="68" height="26" rx="10" fill="${PANTS_D}"/><rect x="204" y="584" width="68" height="26" rx="10" fill="${PANTS_D}"/>`;
+  const shoe = (x) =>
+    `<g transform="translate(${x} 0)"><path d="M0 606 L66 606 L66 650 Q66 674 40 676 L-12 676 Q-22 676 -22 664 L-22 646 Q-22 630 0 626 Z" fill="${WHITE}" stroke="#c9ccd6" stroke-width="4" stroke-linejoin="round"/>` +
+    `<path d="M0 606 L66 606 L66 628 L0 628 Z" fill="${RED}"/><path d="M-22 652 L66 652 L66 668 Q66 676 56 676 L-12 676 Q-22 676 -22 664 Z" fill="#e9ebf2"/><circle cx="33" cy="618" r="6" fill="${WHITE}"/></g>`;
+  const torso =
+    `<path d="M126 296 C176 276 224 276 274 296 L296 330 L300 458 Q200 482 100 458 L104 330 Z" fill="${RED}" stroke="${RED_D}" stroke-width="4" stroke-linejoin="round"/>` +
+    `<path d="M104 440 Q200 466 296 440 L298 462 Q200 490 102 462 Z" fill="${RED_D}"/>` +
+    `<path d="M150 392 L250 392 L262 446 Q200 462 138 446 Z" fill="${RED_L}" opacity="0.35" stroke="${RED_D}" stroke-width="3"/>` +
+    `<path d="M136 292 Q200 330 264 292 L252 284 Q200 312 148 284 Z" fill="${RED_D}"/><path d="M162 300 Q200 334 238 300 L232 290 Q200 316 168 290 Z" fill="#14141c"/>` +
+    `<path d="M176 322 L174 394" stroke="${INK}" stroke-width="6" stroke-linecap="round"/><path d="M224 322 L226 394" stroke="${INK}" stroke-width="6" stroke-linecap="round"/><circle cx="174" cy="398" r="6" fill="${INK}"/><circle cx="226" cy="398" r="6" fill="${INK}"/>`;
+  const neck = `<rect x="178" y="272" width="44" height="40" rx="14" fill="${SKIN_D}"/>`;
+  const rightArm = `<g transform="rotate(${wave} 285 335)">${arm(P.R)}</g>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="-40 0 480 700">` +
+    `<ellipse cx="200" cy="682" rx="130" ry="14" fill="rgba(0,0,0,0.18)"/>` +
+    legs + shoe(150) + shoe(228) + neck + torso + arm(P.L) + head + rightArm + `</svg>`;
 };
